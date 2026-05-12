@@ -5,7 +5,7 @@ on:
   repository_dispatch:
 
 env:
-  NODE_VERSION: 16.x
+  NODE_VERSION: 22.x
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,22 +13,15 @@ jobs:
     # always run in pull request, or repository_dispatch
     if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'repository_dispatch'
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Restore NPM cache
-        uses: actions/cache@v3
-        continue-on-error: true
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          cache: "npm"
 
       - run: npm ci
-      - run: npm test
+      - run: npm run lint
+      - run: npm run test
 
   deploy:
     runs-on: ubuntu-latest
@@ -37,31 +30,21 @@ jobs:
     # only run if in main
     if: github.ref == 'refs/heads/main' && (github.event_name == 'repository_dispatch' || github.event_name == 'push')
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Restore NPM cache
-        uses: actions/cache@v3
-        continue-on-error: true
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          cache: "npm"
 
       - run: npm ci
 
-      - name: Publish
+      - name: Deploy
         # only publish if a direct `push`/`repository_dispatch`
-        uses: cloudflare/wrangler-action@2.0.0
+        uses: cloudflare/wrangler-action@v3.14.1
         if: github.event_name == 'repository_dispatch' || github.event_name == 'push'
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
-          command: publish
           secrets: |
             AUTH_KEY
         env:
-          NODE_ENV: production
           AUTH_KEY: ${{ secrets.AUTH_KEY }}
